@@ -1,0 +1,217 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>สรุปการเงินรายเดือน</title>
+    <style>
+        :root {
+            --primary: #4CAF50;
+            --danger: #f44336;
+            --bg: #f4f7f6;
+            --card-bg: #ffffff;
+            --text: #333;
+        }
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: var(--bg);
+            color: var(--text);
+            margin: 0;
+            padding: 20px;
+            display: flex;
+            justify-content: center;
+        }
+        .container {
+            width: 100%;
+            max-width: 500px;
+        }
+        h1 {
+            text-align: center;
+            color: var(--primary);
+        }
+        .card {
+            background: var(--card-bg);
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+        }
+        .summary {
+            display: flex;
+            justify-content: space-between;
+            text-align: center;
+            margin-top: 15px;
+        }
+        .summary div {
+            flex: 1;
+        }
+        .summary h3 {
+            margin: 5px 0;
+            font-size: 1.2rem;
+        }
+        .text-green { color: var(--primary); }
+        .text-red { color: var(--danger); }
+        
+        label {
+            font-weight: bold;
+            display: block;
+            margin-bottom: 5px;
+            margin-top: 10px;
+        }
+        input {
+            width: 100%;
+            padding: 10px;
+            margin-bottom: 10px;
+            border: 1px solid #ccc;
+            border-radius: 5px;
+            box-sizing: border-box;
+        }
+        button {
+            width: 100%;
+            padding: 10px;
+            background-color: var(--primary);
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 1rem;
+            font-weight: bold;
+        }
+        button:hover { background-color: #45a049; }
+        
+        ul {
+            list-style-type: none;
+            padding: 0;
+        }
+        li {
+            background: #f9f9f9;
+            margin-bottom: 10px;
+            padding: 10px;
+            border-radius: 5px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-left: 4px solid var(--danger);
+        }
+        .delete-btn {
+            background-color: var(--danger);
+            color: white;
+            border: none;
+            padding: 5px 10px;
+            border-radius: 3px;
+            cursor: pointer;
+            width: auto;
+            font-size: 0.8rem;
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h1>ระบบจัดการเงินรายเดือน</h1>
+
+    <div class="card">
+        <label for="budget">เงินที่ตั้งไว้เดือนนี้ (บาท)</label>
+        <input type="number" id="budget" placeholder="เช่น 15000">
+        <button onclick="setBudget()">บันทึกงบประมาณ</button>
+        
+        <div class="summary">
+            <div>
+                <p>งบประมาณ</p>
+                <h3 id="display-budget" class="text-green">0</h3>
+            </div>
+            <div>
+                <p>ใช้ไปแล้ว</p>
+                <h3 id="display-expense" class="text-red">0</h3>
+            </div>
+            <div>
+                <p>คงเหลือ</p>
+                <h3 id="display-balance">0</h3>
+            </div>
+        </div>
+    </div>
+
+    <div class="card">
+        <h3>เพิ่มรายการใช้จ่าย</h3>
+        <label for="expense-name">ชื่อรายการ</label>
+        <input type="text" id="expense-name" placeholder="เช่น ค่าอาหาร, ค่าน้ำมัน">
+        
+        <label for="expense-amount">จำนวนเงิน (บาท)</label>
+        <input type="number" id="expense-amount" placeholder="เช่น 150">
+        
+        <button onclick="addExpense()">เพิ่มรายการ</button>
+    </div>
+
+    <div class="card">
+        <h3>ประวัติการใช้จ่าย</h3>
+        <ul id="expense-list"></ul>
+    </div>
+</div>
+
+<script>
+    let budget = localStorage.getItem('budget') ? parseFloat(localStorage.getItem('budget')) : 0;
+    let expenses = localStorage.getItem('expenses') ? JSON.parse(localStorage.getItem('expenses')) : [];
+
+    function updateUI() {
+        document.getElementById('display-budget').innerText = budget.toLocaleString();
+        
+        let totalExpense = expenses.reduce((sum, item) => sum + item.amount, 0);
+        document.getElementById('display-expense').innerText = totalExpense.toLocaleString();
+        
+        let balance = budget - totalExpense;
+        let balanceEl = document.getElementById('display-balance');
+        balanceEl.innerText = balance.toLocaleString();
+        
+        if (balance < 0) {
+            balanceEl.style.color = "var(--danger)";
+        } else {
+            balanceEl.style.color = "var(--text)";
+        }
+
+        let listEl = document.getElementById('expense-list');
+        listEl.innerHTML = '';
+        expenses.forEach((expense, index) => {
+            let li = document.createElement('li');
+            li.innerHTML = `
+                <span>${expense.name} <br><small>฿${expense.amount.toLocaleString()}</small></span>
+                <button class="delete-btn" onclick="deleteExpense(${index})">ลบ</button>
+            `;
+            listEl.appendChild(li);
+        });
+    }
+
+    function setBudget() {
+        let budgetInput = document.getElementById('budget').value;
+        if (budgetInput && budgetInput > 0) {
+            budget = parseFloat(budgetInput);
+            localStorage.setItem('budget', budget);
+            document.getElementById('budget').value = '';
+            updateUI();
+        }
+    }
+
+    function addExpense() {
+        let name = document.getElementById('expense-name').value;
+        let amount = document.getElementById('expense-amount').value;
+
+        if (name && amount && amount > 0) {
+            expenses.push({ name: name, amount: parseFloat(amount) });
+            localStorage.setItem('expenses', JSON.stringify(expenses));
+            document.getElementById('expense-name').value = '';
+            document.getElementById('expense-amount').value = '';
+            updateUI();
+        }
+    }
+
+    function deleteExpense(index) {
+        expenses.splice(index, 1);
+        localStorage.setItem('expenses', JSON.stringify(expenses));
+        updateUI();
+    }
+
+    // โหลดข้อมูลเมื่อเปิดหน้าเว็บ
+    updateUI();
+</script>
+
+</body>
+</html>
