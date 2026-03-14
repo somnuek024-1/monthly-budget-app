@@ -64,13 +64,14 @@
             margin-bottom: 5px;
             margin-top: 10px;
         }
-        input {
+        input, select {
             width: 100%;
             padding: 10px;
             margin-bottom: 10px;
             border: 1px solid #ccc;
             border-radius: 5px;
             box-sizing: border-box;
+            font-size: 1rem;
         }
         button {
             width: 100%;
@@ -152,8 +153,15 @@
 
     <div class="card">
         <h3>เพิ่มรายการใช้จ่าย</h3>
-        <label for="expense-name">ชื่อรายการ</label>
-        <input type="text" id="expense-name" placeholder="เช่น ค่าอาหาร, ค่าน้ำมัน">
+        <label for="expense-category">เลือกหมวดหมู่</label>
+        <select id="expense-category">
+            <option value="ค่าของกิน">1. ค่าของกิน</option>
+            <option value="ค่ารถ">2. ค่ารถ</option>
+            <option value="ค่าของใช้ต่างๆ">3. ค่าของใช้ต่างๆ (สบู่/น้ำยาล้างจาน/อื่นๆ)</option>
+            <option value="ค่ารายเดือน">4. ค่ารายเดือน (ค่าเน็ต/ค่าน้ำ/ค่ายูทูป)</option>
+            <option value="ค่าเติมเกม">5. ค่าเติมเกม</option>
+            <option value="อื่นๆ">6. อื่นๆ</option>
+        </select>
         
         <label for="expense-amount">จำนวนเงิน (บาท)</label>
         <input type="number" id="expense-amount" placeholder="เช่น 150">
@@ -176,10 +184,9 @@
 <script>
     let budget = localStorage.getItem('budget') ? parseFloat(localStorage.getItem('budget')) : 0;
     let expenses = localStorage.getItem('expenses') ? JSON.parse(localStorage.getItem('expenses')) : [];
-    let myChart = null; // ตัวแปรเก็บกราฟ
+    let myChart = null;
 
     function updateUI() {
-        // อัปเดตตัวเลขยอดเงิน
         document.getElementById('display-budget').innerText = budget.toLocaleString();
         
         let totalExpense = expenses.reduce((sum, item) => sum + item.amount, 0);
@@ -189,13 +196,8 @@
         let balanceEl = document.getElementById('display-balance');
         balanceEl.innerText = balance.toLocaleString();
         
-        if (balance < 0) {
-            balanceEl.style.color = "var(--danger)";
-        } else {
-            balanceEl.style.color = "var(--text)";
-        }
+        balanceEl.style.color = balance < 0 ? "var(--danger)" : "var(--text)";
 
-        // อัปเดตรายการด้านล่าง
         let listEl = document.getElementById('expense-list');
         listEl.innerHTML = '';
         expenses.forEach((expense, index) => {
@@ -211,7 +213,6 @@
             listEl.appendChild(li);
         });
 
-        // อัปเดตกราฟ
         updateChart();
     }
 
@@ -226,21 +227,19 @@
     }
 
     function addExpense() {
-        let name = document.getElementById('expense-name').value;
+        let category = document.getElementById('expense-category').value;
         let amount = document.getElementById('expense-amount').value;
         
-        // สร้างวันที่ปัจจุบัน
         let today = new Date();
         let dateFormatted = today.toLocaleDateString('th-TH', { day: '2-digit', month: 'short', year: 'numeric' });
 
-        if (name && amount && amount > 0) {
+        if (category && amount && amount > 0) {
             expenses.push({ 
-                name: name, 
+                name: category, 
                 amount: parseFloat(amount),
                 date: dateFormatted 
             });
             localStorage.setItem('expenses', JSON.stringify(expenses));
-            document.getElementById('expense-name').value = '';
             document.getElementById('expense-amount').value = '';
             updateUI();
         }
@@ -253,46 +252,36 @@
     }
 
     function updateChart() {
-        // จัดกลุ่มข้อมูลตามวันที่
         let dailyData = {};
         expenses.forEach(exp => {
             let date = exp.date ? exp.date : 'ก่อนหน้า';
-            if (!dailyData[date]) {
-                dailyData[date] = 0;
-            }
-            dailyData[date] += exp.amount;
+            dailyData[date] = (dailyData[date] || 0) + exp.amount;
         });
 
         const labels = Object.keys(dailyData);
         const dataPoints = Object.values(dailyData);
 
         const ctx = document.getElementById('expenseChart').getContext('2d');
-        
-        // ลบกราฟเก่าทิ้งก่อนวาดใหม่ (ป้องกันกราฟซ้อนกัน)
-        if (myChart) {
-            myChart.destroy();
-        }
+        if (myChart) myChart.destroy();
 
         myChart = new Chart(ctx, {
             type: 'line',
             data: {
                 labels: labels,
                 datasets: [{
-                    label: 'ยอดใช้จ่าย (บาท)',
+                    label: 'ยอดใช้จ่ายรายวัน (บาท)',
                     data: dataPoints,
-                    borderColor: '#f44336',
-                    backgroundColor: 'rgba(244, 67, 54, 0.2)',
+                    borderColor: '#4CAF50',
+                    backgroundColor: 'rgba(76, 175, 80, 0.2)',
                     borderWidth: 2,
                     pointRadius: 4,
                     fill: true,
-                    tension: 0.3 // ทำให้เส้นโค้งมนนิดหน่อย
+                    tension: 0.3
                 }]
             },
             options: {
                 responsive: true,
-                scales: {
-                    y: { beginAtZero: true }
-                }
+                scales: { y: { beginAtZero: true } }
             }
         });
     }
@@ -303,26 +292,19 @@
             return;
         }
 
-        // จัดรูปแบบข้อมูลสำหรับ Excel
-        let excelData = expenses.map((exp, index) => {
-            return {
-                'ลำดับ': index + 1,
-                'วันที่': exp.date ? exp.date : 'ไม่ระบุ',
-                'รายการ': exp.name,
-                'รายจ่าย (บาท)': exp.amount
-            };
-        });
+        let excelData = expenses.map((exp, index) => ({
+            'ลำดับ': index + 1,
+            'วันที่': exp.date || 'ไม่ระบุ',
+            'หมวดหมู่': exp.name,
+            'จำนวนเงิน (บาท)': exp.amount
+        }));
 
-        // สร้างและบันทึกไฟล์ Excel
         const worksheet = XLSX.utils.json_to_sheet(excelData);
         const workbook = XLSX.utils.book_new();
-        XLSX.utils.book_append_sheet(workbook, worksheet, "ประวัติการใช้จ่าย");
-        
-        // ดาวน์โหลดไฟล์ชื่อ Monthly_Expenses.xlsx
-        XLSX.writeFile(workbook, "Monthly_Expenses.xlsx");
+        XLSX.utils.book_append_sheet(workbook, worksheet, "รายการใช้จ่าย");
+        XLSX.writeFile(workbook, "Summary_Expenses.xlsx");
     }
 
-    // โหลดข้อมูลเมื่อเปิดหน้าเว็บ
     updateUI();
 </script>
 
