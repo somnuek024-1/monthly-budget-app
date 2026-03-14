@@ -153,6 +153,10 @@
 
     <div class="card">
         <h3>เพิ่มรายการใช้จ่าย</h3>
+        
+        <label for="expense-date">เลือกวันที่</label>
+        <input type="date" id="expense-date">
+
         <label for="expense-category">เลือกหมวดหมู่</label>
         <select id="expense-category">
             <option value="ค่าของกิน">1. ค่าของกิน</option>
@@ -186,6 +190,13 @@
     let expenses = localStorage.getItem('expenses') ? JSON.parse(localStorage.getItem('expenses')) : [];
     let myChart = null;
 
+    // ตั้งค่าวันที่เริ่มต้นให้เป็นวันนี้
+    window.onload = function() {
+        const today = new Date().toISOString().split('T')[0];
+        document.getElementById('expense-date').value = today;
+        updateUI();
+    };
+
     function updateUI() {
         document.getElementById('display-budget').innerText = budget.toLocaleString();
         
@@ -200,15 +211,18 @@
 
         let listEl = document.getElementById('expense-list');
         listEl.innerHTML = '';
-        expenses.forEach((expense, index) => {
+        
+        // เรียงลำดับรายการตามวันที่ (ใหม่ไปเก่า)
+        const sortedExpenses = [...expenses].sort((a, b) => new Date(b.rawDate) - new Date(a.rawDate));
+
+        sortedExpenses.forEach((expense, index) => {
             let li = document.createElement('li');
-            let dateStr = expense.date ? expense.date : 'ไม่ระบุวันที่';
             li.innerHTML = `
                 <div class="expense-info">
                     <span>${expense.name} <strong>฿${expense.amount.toLocaleString()}</strong></span>
-                    <span class="expense-date">${dateStr}</span>
+                    <span class="expense-date">${expense.date}</span>
                 </div>
-                <button class="delete-btn" onclick="deleteExpense(${index})">ลบ</button>
+                <button class="delete-btn" onclick="deleteExpense(${expenses.indexOf(expense)})">ลบ</button>
             `;
             listEl.appendChild(li);
         });
@@ -227,22 +241,29 @@
     }
 
     function addExpense() {
+        let dateInput = document.getElementById('expense-date').value;
         let category = document.getElementById('expense-category').value;
         let amount = document.getElementById('expense-amount').value;
         
-        let today = new Date();
-        let dateFormatted = today.toLocaleDateString('th-TH', { day: '2-digit', month: 'short', year: 'numeric' });
-
-        if (category && amount && amount > 0) {
-            expenses.push({ 
-                name: category, 
-                amount: parseFloat(amount),
-                date: dateFormatted 
-            });
-            localStorage.setItem('expenses', JSON.stringify(expenses));
-            document.getElementById('expense-amount').value = '';
-            updateUI();
+        if (!dateInput || !category || !amount || amount <= 0) {
+            alert('กรุณากรอกข้อมูลให้ครบถ้วน');
+            return;
         }
+
+        // แปลงรูปแบบวันที่เพื่อแสดงผลภาษาไทย
+        let selectedDate = new Date(dateInput);
+        let dateFormatted = selectedDate.toLocaleDateString('th-TH', { day: '2-digit', month: 'short', year: 'numeric' });
+
+        expenses.push({ 
+            name: category, 
+            amount: parseFloat(amount),
+            date: dateFormatted,
+            rawDate: dateInput // เก็บไว้ใช้สำหรับเรียงลำดับและทำกราฟ
+        });
+        
+        localStorage.setItem('expenses', JSON.stringify(expenses));
+        document.getElementById('expense-amount').value = '';
+        updateUI();
     }
 
     function deleteExpense(index) {
@@ -254,12 +275,18 @@
     function updateChart() {
         let dailyData = {};
         expenses.forEach(exp => {
-            let date = exp.date ? exp.date : 'ก่อนหน้า';
-            dailyData[date] = (dailyData[date] || 0) + exp.amount;
+            let dateKey = exp.rawDate || 'ก่อนหน้า';
+            dailyData[dateKey] = (dailyData[dateKey] || 0) + exp.amount;
         });
 
-        const labels = Object.keys(dailyData);
-        const dataPoints = Object.values(dailyData);
+        // เรียงลำดับวันที่สำหรับแสดงบนกราฟ
+        const sortedDates = Object.keys(dailyData).sort();
+        const dataPoints = sortedDates.map(date => dailyData[date]);
+        
+        // เปลี่ยน format วันที่บนกราฟให้เป็นภาษาไทย
+        const thaiLabels = sortedDates.map(date => {
+            return new Date(date).toLocaleDateString('th-TH', { day: '2-digit', month: 'short' });
+        });
 
         const ctx = document.getElementById('expenseChart').getContext('2d');
         if (myChart) myChart.destroy();
@@ -267,9 +294,9 @@
         myChart = new Chart(ctx, {
             type: 'line',
             data: {
-                labels: labels,
+                labels: thaiLabels,
                 datasets: [{
-                    label: 'ยอดใช้จ่ายรายวัน (บาท)',
+                    label: 'ยอดใช้จ่าย (บาท)',
                     data: dataPoints,
                     borderColor: '#4CAF50',
                     backgroundColor: 'rgba(76, 175, 80, 0.2)',
@@ -294,7 +321,7 @@
 
         let excelData = expenses.map((exp, index) => ({
             'ลำดับ': index + 1,
-            'วันที่': exp.date || 'ไม่ระบุ',
+            'วันที่': exp.date,
             'หมวดหมู่': exp.name,
             'จำนวนเงิน (บาท)': exp.amount
         }));
@@ -302,10 +329,8 @@
         const worksheet = XLSX.utils.json_to_sheet(excelData);
         const workbook = XLSX.utils.book_new();
         XLSX.utils.book_append_sheet(workbook, worksheet, "รายการใช้จ่าย");
-        XLSX.writeFile(workbook, "Summary_Expenses.xlsx");
+        XLSX.writeFile(workbook, "Monthly_Summary.xlsx");
     }
-
-    updateUI();
 </script>
 
 </body>
